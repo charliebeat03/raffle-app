@@ -27,7 +27,9 @@ class Raffle(Base):
     total_tickets = Column(Integer, nullable=False)
     tickets_sold = Column(Integer, default=0)
     ticket_price = Column(Float, nullable=False)
-    prize = Column(String(300), nullable=False)
+    prize_first = Column(String(300), nullable=False)
+    prize_second = Column(String(300), nullable=False)
+    prize_third = Column(String(300), nullable=False)
     is_active = Column(Boolean, default=True)
     is_completed = Column(Boolean, default=False)
     draw_date = Column(DateTime, nullable=True)
@@ -74,9 +76,9 @@ class Admin(Base):
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(200), nullable=False)
     email = Column(String(100), unique=True, nullable=False)
-    phone = Column(String(20), nullable=True)  # Nuevo campo
+    phone = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True)
-    is_main_admin = Column(Boolean, default=False)  # Nuevo campo para identificar admin principal
+    is_main_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def set_password(self, password: str):
