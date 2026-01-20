@@ -27,7 +27,7 @@ class AdminCreate(BaseModel):
     username: str
     password: str
     email: str
-    phone: Optional[str] = None  # Opcional
+    phone: Optional[str] = None
 
 class AdminUpdate(BaseModel):
     email: Optional[str] = None
@@ -66,7 +66,9 @@ class RaffleCreate(BaseModel):
     description: Optional[str] = None
     total_tickets: int
     ticket_price: float
-    prize: str
+    prize_first: str
+    prize_second: str
+    prize_third: str
 
 class RaffleResponse(BaseModel):
     id: int
@@ -75,7 +77,9 @@ class RaffleResponse(BaseModel):
     total_tickets: int
     tickets_sold: int
     ticket_price: float
-    prize: str
+    prize_first: str
+    prize_second: str
+    prize_third: str
     is_active: bool
     is_completed: bool
     draw_date: Optional[datetime]
@@ -247,14 +251,12 @@ def delete_raffle(
     if not raffle:
         raise HTTPException(status_code=404, detail="Rifa no encontrada")
     
-    # Solo se pueden eliminar rifas completadas o inactivas
     if raffle.is_active and not raffle.is_completed:
         raise HTTPException(
             status_code=400, 
             detail="No se puede eliminar una rifa activa"
         )
     
-    # Verificar que no tenga tickets asociados
     ticket_count = db.query(Ticket).filter(Ticket.raffle_id == raffle_id).count()
     if ticket_count > 0:
         raise HTTPException(
@@ -322,7 +324,6 @@ def purchase_tickets(purchase: TicketPurchase, db: Session = Depends(get_db)):
     for ticket in tickets:
         db.refresh(ticket)
     
-    # Generar enlaces de WhatsApp para los administradores con teléfono
     admins_with_phone = db.query(Admin).filter(
         Admin.phone.isnot(None),
         Admin.is_active == True
@@ -330,7 +331,6 @@ def purchase_tickets(purchase: TicketPurchase, db: Session = Depends(get_db)):
     
     whatsapp_links = []
     for admin in admins_with_phone:
-        # Crear mensaje para WhatsApp
         message = (
             f"Nueva compra de boletos\n\n"
             f"Rifa: {raffle.title}\n"
@@ -343,7 +343,6 @@ def purchase_tickets(purchase: TicketPurchase, db: Session = Depends(get_db)):
             f"Fecha: {datetime.utcnow().strftime('%d/%m/%Y %H:%M:%S')}"
         )
         
-        # Codificar mensaje para URL
         encoded_message = message.replace(' ', '%20').replace('\n', '%0A')
         whatsapp_link = f"https://wa.me/{admin.phone}?text={encoded_message}"
         
@@ -428,14 +427,24 @@ def perform_draw(
             detail=f"Ya existe un ganador para la posición {draw_request.prize_position}"
         )
     
+    # Asignar el premio correspondiente según la posición
+    if draw_request.prize_position == 1:
+        prize_description = f"1° Lugar - {raffle.prize_first}"
+    elif draw_request.prize_position == 2:
+        prize_description = f"2° Lugar - {raffle.prize_second}"
+    elif draw_request.prize_position == 3:
+        prize_description = f"3° Lugar - {raffle.prize_third}"
+    else:
+        prize_description = f"Premio {draw_request.prize_position}° Lugar"
+    
     winner = Winner(
         user_id=winning_ticket.user_id,
         raffle_id=raffle.id,
         ticket_id=winning_ticket.id,
         prize_position=draw_request.prize_position,
-        prize_description=f"{draw_request.prize_position} Premio - {raffle.prize}",
+        prize_description=prize_description,
         notified=False,
-        whatsapp_link=f"https://wa.me/{user.phone}?text=Felicidades {user.name}! Has ganado el {draw_request.prize_position} premio en la rifa '{raffle.title}' con el boleto numero {winning_ticket.ticket_number}. Premio: {raffle.prize}"
+        whatsapp_link=f"https://wa.me/{user.phone}?text=Felicidades {user.name}! Has ganado el {draw_request.prize_position}° premio en la rifa '{raffle.title}' con el boleto numero {winning_ticket.ticket_number}. Premio: {prize_description}"
     )
     
     winning_ticket.is_winner = True
@@ -587,7 +596,7 @@ def create_admin(
         email=admin_data.email,
         phone=admin_data.phone,
         is_active=True,
-        is_main_admin=False  # Nuevos admins no son principales
+        is_main_admin=False
     )
     db_admin.set_password(admin_data.password)
     
@@ -607,7 +616,6 @@ def update_admin(
     if not admin_to_update:
         raise HTTPException(status_code=404, detail="Administrador no encontrado")
     
-    # Solo se puede actualizar a sí mismo, a menos que sea admin principal
     if current_admin.id != admin_id and not current_admin.is_main_admin:
         raise HTTPException(status_code=403, detail="No tiene permisos para actualizar este administrador")
     
@@ -640,7 +648,6 @@ def delete_admin(
     if not admin_to_delete:
         raise HTTPException(status_code=404, detail="Administrador no encontrado")
     
-    # No se puede eliminar al admin principal
     if admin_to_delete.is_main_admin:
         raise HTTPException(status_code=400, detail="No se puede eliminar al administrador principal")
     
