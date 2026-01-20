@@ -49,12 +49,25 @@ const RaffleInfo = () => {
             )}
             
             <div className="mb-3">
-              <h5>🎁 Premio Principal</h5>
-              <p className="fs-5">{activeRaffle.prize}</p>
+              <h5>Premios</h5>
+              <div className="prizes-container">
+                <div className="prize-item mb-2">
+                  <Badge bg="success" className="me-2">1°</Badge>
+                  <span>{activeRaffle.prize_first}</span>
+                </div>
+                <div className="prize-item mb-2">
+                  <Badge bg="info" className="me-2">2°</Badge>
+                  <span>{activeRaffle.prize_second}</span>
+                </div>
+                <div className="prize-item mb-2">
+                  <Badge bg="warning" className="me-2">3°</Badge>
+                  <span>{activeRaffle.prize_third}</span>
+                </div>
+              </div>
             </div>
 
             <div className="mb-4">
-              <h5>📊 Progreso de Venta</h5>
+              <h5>Progreso de Venta</h5>
               <ProgressBar 
                 now={calculateProgress(activeRaffle)} 
                 label={`${calculateProgress(activeRaffle).toFixed(1)}%`}
@@ -144,6 +157,10 @@ const RaffleInfo = () => {
           font-size: 24px;
           font-weight: bold;
           margin: 0 auto 10px;
+        }
+        .prize-item {
+          display: flex;
+          align-items: center;
         }
       `}</style>
     </Card>
