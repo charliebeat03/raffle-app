@@ -474,23 +474,30 @@ const TicketPurchase = () => {
                 </Form.Select>
               </Form.Group>
 
-              {selectedRaffle && (
-                <Card className="mb-3 bg-light">
-                  <Card.Body>
-                    <h5>{selectedRaffle.title}</h5>
-                    <p className="mb-1">{selectedRaffle.description}</p>
-                    <p className="mb-1">
-                      <strong>Premio:</strong> {selectedRaffle.prize}
+              
+                {selectedRaffle && (
+                  <Card className="mb-3 bg-light">
+                    <Card.Body>
+                      <h5>{selectedRaffle.title}</h5>
+                      <p className="mb-1">{selectedRaffle.description}</p>
+                      <p className="mb-1">
+                       <strong>Premio 1° Lugar:</strong> {selectedRaffle.prize_first}
+                      </p>
+                      <p className="mb-1">
+                      <strong>Premio 2° Lugar:</strong> {selectedRaffle.prize_second}
                     </p>
                     <p className="mb-1">
-                      <strong>Boletos disponibles:</strong> {maxQuantity}
-                    </p>
-                    <p className="mb-0">
-                      <strong>Precio por boleto:</strong> ${selectedRaffle.ticket_price}
-                    </p>
-                  </Card.Body>
-                </Card>
-              )}
+                        <strong>Premio 3° Lugar:</strong> {selectedRaffle.prize_third}
+                     </p>
+                    <p className="mb-1">
+                        <strong>Boletos disponibles:</strong> {maxQuantity}
+                     </p>
+                     <p className="mb-0">
+                        <strong>Precio por boleto:</strong> ${selectedRaffle.ticket_price}
+                     </p>
+                    </Card.Body>
+                  </Card>
+                )}
 
               <Row>
                 <Col lg={6} md={12}>
