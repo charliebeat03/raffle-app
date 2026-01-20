@@ -10,19 +10,19 @@ const AdminPanel = ({ admin }) => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(false);
   
-  // Estados para modales
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showUpdateAdminModal, setShowUpdateAdminModal] = useState(false);
   const [showDeleteRaffleModal, setShowDeleteRaffleModal] = useState(false);
   const [showDeleteAdminModal, setShowDeleteAdminModal] = useState(false);
   
-  // Estados para formularios
   const [newRaffle, setNewRaffle] = useState({
     title: '',
     description: '',
     total_tickets: 100,
     ticket_price: 10,
-    prize: ''
+    prize_first: '',
+    prize_second: '',
+    prize_third: ''
   });
   
   const [newAdmin, setNewAdmin] = useState({
@@ -84,8 +84,8 @@ const AdminPanel = ({ admin }) => {
 
   const handleCreateRaffle = async (e) => {
     e.preventDefault();
-    if (!newRaffle.title || !newRaffle.prize) {
-      setMessage({ type: 'danger', text: 'Título y premio son requeridos' });
+    if (!newRaffle.title || !newRaffle.prize_first || !newRaffle.prize_second || !newRaffle.prize_third) {
+      setMessage({ type: 'danger', text: 'Título y todos los premios son requeridos' });
       return;
     }
 
@@ -98,7 +98,9 @@ const AdminPanel = ({ admin }) => {
         description: '',
         total_tickets: 100,
         ticket_price: 10,
-        prize: ''
+        prize_first: '',
+        prize_second: '',
+        prize_third: ''
       });
       fetchData();
     } catch (error) {
@@ -388,12 +390,34 @@ const AdminPanel = ({ admin }) => {
                 </Row>
 
                 <Form.Group className="mb-3">
-                  <Form.Label>Premio *</Form.Label>
+                  <Form.Label>Premio 1° Lugar *</Form.Label>
                   <Form.Control
                     type="text"
-                    value={newRaffle.prize}
-                    onChange={(e) => setNewRaffle({...newRaffle, prize: e.target.value})}
+                    value={newRaffle.prize_first}
+                    onChange={(e) => setNewRaffle({...newRaffle, prize_first: e.target.value})}
                     placeholder="Ej: $1000 en efectivo"
+                    required
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Premio 2° Lugar *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={newRaffle.prize_second}
+                    onChange={(e) => setNewRaffle({...newRaffle, prize_second: e.target.value})}
+                    placeholder="Ej: $500 en efectivo"
+                    required
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Premio 3° Lugar *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={newRaffle.prize_third}
+                    onChange={(e) => setNewRaffle({...newRaffle, prize_third: e.target.value})}
+                    placeholder="Ej: $250 en efectivo"
                     required
                   />
                 </Form.Group>
@@ -509,7 +533,7 @@ const AdminPanel = ({ admin }) => {
                       <th>Título</th>
                       <th>Boletos</th>
                       <th>Precio</th>
-                      <th>Premio</th>
+                      <th>Premios</th>
                       <th>Estado</th>
                       <th>Recaudación</th>
                       <th>Acciones</th>
@@ -536,7 +560,13 @@ const AdminPanel = ({ admin }) => {
                           </div>
                         </td>
                         <td>${raffle.ticket_price}</td>
-                        <td>{raffle.prize}</td>
+                        <td>
+                          <div className="small">
+                            <div><strong>1°:</strong> {raffle.prize_first}</div>
+                            <div><strong>2°:</strong> {raffle.prize_second}</div>
+                            <div><strong>3°:</strong> {raffle.prize_third}</div>
+                          </div>
+                        </td>
                         <td>
                           <Badge bg={raffle.is_active ? 'success' : 'danger'}>
                             {raffle.is_active ? 'Activa' : 'Inactiva'}
@@ -774,6 +804,11 @@ const AdminPanel = ({ admin }) => {
               <Card className="mb-3">
                 <Card.Body>
                   <h5>{selectedRaffle.title}</h5>
+                  <div className="small mb-2">
+                    <div><strong>1° Premio:</strong> {selectedRaffle.prize_first}</div>
+                    <div><strong>2° Premio:</strong> {selectedRaffle.prize_second}</div>
+                    <div><strong>3° Premio:</strong> {selectedRaffle.prize_third}</div>
+                  </div>
                   <p><strong>Boletos vendidos:</strong> {selectedRaffle.tickets_sold}/{selectedRaffle.total_tickets}</p>
                   <p><strong>Estado:</strong> {selectedRaffle.is_active ? 'Activa' : 'Inactiva'}</p>
                   <p><strong>Completada:</strong> {selectedRaffle.is_completed ? 'Sí' : 'No'}</p>
