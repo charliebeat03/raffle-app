@@ -1,0 +1,178 @@
+/* Wheel.css - Estilos para la ruleta profesional */
+
+.wheel-container {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.wheel-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: 100%; /* Mantener relación 1:1 */
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+}
+
+.wheel-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform-origin: center center;
+    transition: transform 6s cubic-bezier(0.17, 0.67, 0.3, 0.99);
+}
+
+.wheel-border {
+    fill: #8B4513; /* Color madera */
+    stroke: #654321;
+    stroke-width: 10;
+}
+
+.wheel-center {
+    fill: #FFD700;
+    stroke: #B8860B;
+    stroke-width: 3;
+}
+
+.wheel-number {
+    font-size: 10px;
+    font-weight: bold;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+}
+
+/* Indicador superior (triángulo rojo) */
+.wheel-indicator {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-top: 30px solid #FF0000;
+    z-index: 10;
+    filter: drop-shadow(0 0 3px rgba(0,0,0,0.5));
+}
+
+/* Línea de referencia desde el centro hasta el borde (en la parte superior) */
+.wheel-reference-line {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 2px;
+    height: 50%;
+    background: #FF0000;
+    transform: translateX(-50%);
+    z-index: 5;
+}
+
+.wheel-stand {
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 10px;
+    height: 40px;
+    background: #654321;
+    border-radius: 2px;
+}
+
+.wheel-pointer {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 0, 0, 0.3);
+    transform-origin: center;
+    z-index: 1;
+}
+
+.wheel-spin-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FFD700, #B8860B);
+    border: 3px solid #8B4513;
+    color: white;
+    font-weight: bold;
+    z-index: 20;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.wheel-spin-button:hover {
+    transform: translate(-50%, -50%) scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
+}
+
+.wheel-spin-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .wheel-container {
+        max-width: 300px;
+    }
+    
+    .wheel-number {
+        font-size: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .wheel-container {
+        max-width: 250px;
+    }
+    
+    .wheel-number {
+        font-size: 7px;
+    }
+}
+
+/* Efecto de giro lento al final */
+@keyframes slowStop {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(var(--final-rotation)); }
+}
+
+.wheel-spinning {
+    animation: var(--spin-duration) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+/* Estados de los números */
+.wheel-number-opaque {
+    opacity: 0.3;
+    filter: grayscale(100%);
+}
+
+/* Marca para el número 1 (punto de referencia) */
+.number-one-marker {
+    stroke: #00FF00;
+    stroke-width: 3;
+}
+
+/* Indicador visual de la posición 0 grados */
+.zero-degree-marker {
+    stroke: #FF0000;
+    stroke-width: 2;
+    stroke-dasharray: 5,5;
+}
