@@ -1,15 +1,15 @@
 import os
 from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
+from typing import Optional
 
 load_dotenv()
 
 class Settings:
-    # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./raffle.db")
+    # Database - PostgreSQL
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://raffle_user:6BmIRJsRuOtQh1R0v4HGWjlJf8zyJRZl@dpg-d5sqke49c44c739g0oh0-a/raffle_db_7wzs")
     
     # JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "tu-clave-secreta-muy-larga-y-segura-aqui-cambiala-en-produccion")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "#2756e208dd3a275897f8f9125fb3c3de")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 días
     
@@ -24,8 +24,14 @@ class Settings:
     # WhatsApp Settings
     WHATSAPP_BASE_URL: str = "https://wa.me/"
     
+    # App Settings
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    
+    # Server Settings
+    HOST: str = os.getenv("HOST", "0.0.0.0")
+    PORT: int = int(os.getenv("PORT", "8000"))
+
     class Config:
         env_file = ".env"
 
 settings = Settings()
-

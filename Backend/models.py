@@ -1,10 +1,17 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum as SQLAlchemyEnum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import bcrypt
+import enum
 
 Base = declarative_base()
+
+class TicketStatus(enum.Enum):
+    PENDING = "pending"
+    RESERVED = "reserved"
+    PAID = "paid"
+    CANCELLED = "cancelled"
 
 class User(Base):
     __tablename__ = "users"
@@ -15,8 +22,8 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    tickets = relationship("Ticket", back_populates="user")
-    wins = relationship("Winner", back_populates="user")
+    tickets = relationship("Ticket", back_populates="user", cascade="all, delete-orphan")
+    wins = relationship("Winner", back_populates="user", cascade="all, delete-orphan")
 
 class Raffle(Base):
     __tablename__ = "raffles"
@@ -26,6 +33,7 @@ class Raffle(Base):
     description = Column(Text, nullable=True)
     total_tickets = Column(Integer, nullable=False)
     tickets_sold = Column(Integer, default=0)
+    tickets_reserved = Column(Integer, default=0)
     ticket_price = Column(Float, nullable=False)
     prize_first = Column(String(300), nullable=False)
     prize_second = Column(String(300), nullable=False)
@@ -35,29 +43,37 @@ class Raffle(Base):
     draw_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    tickets = relationship("Ticket", back_populates="raffle")
-    winners = relationship("Winner", back_populates="raffle")
+    tickets = relationship("Ticket", back_populates="raffle", cascade="all, delete-orphan")
+    winners = relationship("Winner", back_populates="raffle", cascade="all, delete-orphan")
 
 class Ticket(Base):
     __tablename__ = "tickets"
     
     id = Column(Integer, primary_key=True, index=True)
     ticket_number = Column(Integer, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    raffle_id = Column(Integer, ForeignKey("raffles.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    raffle_id = Column(Integer, ForeignKey("raffles.id", ondelete="CASCADE"), nullable=False)
     purchase_date = Column(DateTime, default=datetime.utcnow)
+    status = Column(SQLAlchemyEnum(TicketStatus, name="ticket_status"), default=TicketStatus.RESERVED, nullable=False)
+    payment_confirmed = Column(Boolean, default=False)
+    payment_date = Column(DateTime, nullable=True)
     is_winner = Column(Boolean, default=False)
     
     user = relationship("User", back_populates="tickets")
     raffle = relationship("Raffle", back_populates="tickets")
+    
+    # Índice compuesto para mejorar consultas
+    __table_args__ = (
+        {'sqlite_autoincrement': True} if 'sqlite' in __tablename__ else {}
+    )
 
 class Winner(Base):
     __tablename__ = "winners"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    raffle_id = Column(Integer, ForeignKey("raffles.id"), nullable=False)
-    ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    raffle_id = Column(Integer, ForeignKey("raffles.id", ondelete="CASCADE"), nullable=False)
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
     prize_position = Column(Integer, nullable=False)
     prize_description = Column(String(300), nullable=False)
     notified = Column(Boolean, default=False)
