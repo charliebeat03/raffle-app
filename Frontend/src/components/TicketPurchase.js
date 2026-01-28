@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Card, Alert, Row, Col, Modal, Badge } from 'react-bootstrap';
-import { purchaseTickets, createUser, getRaffles, getRaffleTickets, getUsers } from '../api';
+import { Form, Button, Card, Alert, Row, Col, Modal, Badge, ProgressBar } from 'react-bootstrap';
+import { purchaseTickets, createUser, getRaffles, getRaffleTickets, getUsers, getUserTickets } from '../api';
 import 'font-awesome/css/font-awesome.min.css';
 import './TicketPurchase.css';
 
@@ -8,6 +8,7 @@ const TicketPurchase = () => {
   const [mode, setMode] = useState('login');
   const [user, setUser] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [reservedTickets, setReservedTickets] = useState([]);
   const [raffles, setRaffles] = useState([]);
   const [selectedRaffle, setSelectedRaffle] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -20,8 +21,9 @@ const TicketPurchase = () => {
   const [validationErrors, setValidationErrors] = useState({});
   const [whatsappLinks, setWhatsappLinks] = useState([]);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [reservedUntil, setReservedUntil] = useState(null);
+  const [timeLeft, setTimeLeft] = useState('');
 
-  // Form states
   const [loginData, setLoginData] = useState({ phone: '' });
   const [registerData, setRegisterData] = useState({
     name: '',
@@ -48,9 +50,44 @@ const TicketPurchase = () => {
     }
   }, [purchaseData.raffleId, raffles, user]);
 
+  useEffect(() => {
+    if (user) {
+      fetchUserTickets();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (reservedUntil) {
+      const timer = setInterval(() => {
+        updateTimeLeft();
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [reservedUntil]);
+
+  const updateTimeLeft = () => {
+    if (!reservedUntil) return;
+    
+    const now = new Date();
+    const reservedDate = new Date(reservedUntil);
+    const diff = reservedDate - now;
+    
+    if (diff <= 0) {
+      setTimeLeft('Tiempo expirado');
+      return;
+    }
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+  };
+
   const updateMaxQuantity = (raffle) => {
     if (!raffle) return;
-    const available = raffle.total_tickets - raffle.tickets_sold;
+    const totalOccupied = raffle.tickets_sold + raffle.tickets_reserved;
+    const available = raffle.total_tickets - totalOccupied;
     setMaxQuantity(available);
     
     if (purchaseData.quantity && parseInt(purchaseData.quantity) > available) {
@@ -58,7 +95,7 @@ const TicketPurchase = () => {
       setSelectedNumbers([]);
       setValidationErrors(prev => ({
         ...prev,
-        quantity: `Maximo ${available} boletos disponibles`
+        quantity: `Máximo ${available} boletos disponibles`
       }));
     }
   };
@@ -75,6 +112,24 @@ const TicketPurchase = () => {
     }
   };
 
+  const fetchUserTickets = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await getUserTickets(user.id);
+      const userTickets = response.data || [];
+      
+      // Separar tickets reservados y pagados
+      const reserved = userTickets.filter(t => t.status === 'reserved');
+      const paid = userTickets.filter(t => t.status === 'paid');
+      
+      setReservedTickets(reserved);
+      setTickets(paid);
+    } catch (error) {
+      console.error('Error fetching user tickets:', error);
+    }
+  };
+
   const fetchAvailableNumbers = async (raffleId) => {
     setLoadingNumbers(true);
     try {
@@ -84,7 +139,9 @@ const TicketPurchase = () => {
       const allNumbers = Array.from({ length: totalTickets }, (_, i) => i + 1);
       
       const soldTickets = response.data || [];
-      const soldNumbers = soldTickets.map(ticket => ticket.ticket_number);
+      const soldNumbers = soldTickets
+        .filter(t => t.status === 'paid' || t.status === 'reserved')
+        .map(ticket => ticket.ticket_number);
       
       const available = allNumbers.filter(number => !soldNumbers.includes(number));
       
@@ -103,7 +160,7 @@ const TicketPurchase = () => {
     e.preventDefault();
     
     if (!loginData.phone) {
-      setMessage({ type: 'danger', text: 'El telefono es requerido' });
+      setMessage({ type: 'danger', text: 'El teléfono es requerido' });
       return;
     }
 
@@ -115,14 +172,15 @@ const TicketPurchase = () => {
       
       if (foundUser) {
         setUser(foundUser);
-        setMessage({ type: 'success', text: 'Inicio de sesion exitoso' });
+        setMessage({ type: 'success', text: 'Inicio de sesión exitoso' });
         if (raffles.length > 0) {
           setPurchaseData(prev => ({ ...prev, raffleId: raffles[0].id.toString() }));
         }
+        fetchUserTickets();
       } else {
         setMessage({ 
           type: 'warning', 
-          text: 'Usuario no encontrado. Registrese para continuar.' 
+          text: 'Usuario no encontrado. Regístrese para continuar.' 
         });
         setRegisterData(prev => ({ ...prev, phone: loginData.phone }));
         setMode('register');
@@ -141,7 +199,7 @@ const TicketPurchase = () => {
     e.preventDefault();
     
     if (!registerData.name || !registerData.phone) {
-      setMessage({ type: 'danger', text: 'Nombre y telefono son requeridos' });
+      setMessage({ type: 'danger', text: 'Nombre y teléfono son requeridos' });
       return;
     }
 
@@ -154,7 +212,10 @@ const TicketPurchase = () => {
       });
       
       setUser(response.data);
-      setMessage({ type: 'success', text: 'Registro exitoso. Sesion iniciada automaticamente.' });
+      setMessage({ 
+        type: 'success', 
+        text: 'Registro exitoso. Sesión iniciada automáticamente.' 
+      });
       
       if (raffles.length > 0) {
         setPurchaseData(prev => ({ ...prev, raffleId: raffles[0].id.toString() }));
@@ -165,6 +226,8 @@ const TicketPurchase = () => {
         phone: '',
         email: ''
       });
+      
+      fetchUserTickets();
       
     } catch (error) {
       setMessage({
@@ -185,27 +248,27 @@ const TicketPurchase = () => {
         if (prev.length < quantity) {
           return [...prev, number];
         } else {
-          setMessage({ type: 'warning', text: `Solo puedes seleccionar ${quantity} numero(s)` });
+          setMessage({ type: 'warning', text: `Solo puedes seleccionar ${quantity} número(s)` });
           return prev;
         }
       }
     });
   };
 
-  const handleTicketPurchase = async () => {
+  const handleTicketReservation = async () => {
     if (!user || !purchaseData.raffleId || selectedNumbers.length === 0) {
-      setMessage({ type: 'danger', text: 'Complete todos los campos requeridos y seleccione los numeros' });
+      setMessage({ type: 'danger', text: 'Complete todos los campos requeridos y seleccione los números' });
       return;
     }
 
     const quantity = parseInt(purchaseData.quantity);
     if (selectedNumbers.length !== quantity) {
-      setMessage({ type: 'warning', text: `Debe seleccionar exactamente ${quantity} numero(s)` });
+      setMessage({ type: 'warning', text: `Debe seleccionar exactamente ${quantity} número(s)` });
       return;
     }
 
     if (!selectedRaffle.is_active) {
-      setMessage({ type: 'warning', text: 'Esta rifa no esta activa' });
+      setMessage({ type: 'warning', text: 'Esta rifa no está activa' });
       return;
     }
 
@@ -217,24 +280,26 @@ const TicketPurchase = () => {
         ticket_numbers: selectedNumbers
       });
 
-      const purchasedTickets = response.data.tickets;
+      const reservedTickets = response.data.tickets;
       const whatsappLinks = response.data.whatsapp_links;
+      const reservedUntil = response.data.reserved_until;
       
-      setTickets(purchasedTickets);
+      setReservedUntil(reservedUntil);
+      updateTimeLeft();
       
-      const totalCost = purchasedTickets.length * selectedRaffle.ticket_price;
+      const totalCost = reservedTickets.length * selectedRaffle.ticket_price;
       
       setMessage({
-        type: 'success',
-        text: `Compra exitosa! ${purchasedTickets.length} boleto(s) comprado(s). Total: $${totalCost}.`
+        type: 'warning',
+        text: `¡Reserva exitosa! ${reservedTickets.length} boleto(s) reservado(s). Total: $${totalCost}. Tienes 24 horas para completar el pago.`
       });
 
       fetchRaffles();
       fetchAvailableNumbers(selectedRaffle.id);
+      fetchUserTickets();
       setSelectedNumbers([]);
       setPurchaseData(prev => ({ ...prev, quantity: '' }));
       
-      // Mostrar enlaces de WhatsApp si hay
       if (whatsappLinks.length > 0) {
         setWhatsappLinks(whatsappLinks);
         setShowWhatsAppModal(true);
@@ -243,7 +308,7 @@ const TicketPurchase = () => {
     } catch (error) {
       setMessage({
         type: 'danger',
-        text: error.response?.data?.detail || 'Error al comprar boletos'
+        text: error.response?.data?.detail || 'Error al reservar boletos'
       });
     } finally {
       setLoading(false);
@@ -268,7 +333,7 @@ const TicketPurchase = () => {
           return (
             <button
               key={number}
-              className={`number-button ${isSelected ? 'selected' : ''}`}
+              className={`number-button ${isSelected ? 'selected' : ''} ${!isAvailable ? 'unavailable' : ''}`}
               onClick={() => isAvailable && handleNumberSelection(number)}
               disabled={!isAvailable || !purchaseData.quantity}
               type="button"
@@ -281,7 +346,7 @@ const TicketPurchase = () => {
     );
   };
 
-  const isPurchaseReady = () => {
+  const isReservationReady = () => {
     const quantity = parseInt(purchaseData.quantity) || 0;
     return user && 
            purchaseData.raffleId && 
@@ -302,7 +367,10 @@ const TicketPurchase = () => {
     setPurchaseData({ raffleId: '', quantity: '' });
     setSelectedNumbers([]);
     setTickets([]);
-    setMessage({ type: 'info', text: 'Sesion cerrada exitosamente' });
+    setReservedTickets([]);
+    setReservedUntil(null);
+    setTimeLeft('');
+    setMessage({ type: 'info', text: 'Sesión cerrada exitosamente' });
   };
 
   const openWhatsAppLink = (link) => {
@@ -333,14 +401,14 @@ const TicketPurchase = () => {
                   <Card.Header className="bg-primary text-white">
                     <div className="d-flex justify-content-between align-items-center">
                       <h5 className="mb-0">
-                        {mode === 'login' ? 'Iniciar Sesion' : 'Registrarse'}
+                        {mode === 'login' ? 'Iniciar Sesión' : 'Registrarse'}
                       </h5>
                       <Button
                         variant="light"
                         size="sm"
                         onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
                       >
-                        {mode === 'login' ? 'No tienes cuenta?' : 'Ya tienes cuenta?'}
+                        {mode === 'login' ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
                       </Button>
                     </div>
                   </Card.Header>
@@ -348,17 +416,17 @@ const TicketPurchase = () => {
                     {mode === 'login' ? (
                       <Form onSubmit={handleLogin}>
                         <Form.Group className="mb-3">
-                          <Form.Label>Telefono *</Form.Label>
+                          <Form.Label>Teléfono *</Form.Label>
                           <Form.Control
                             type="tel"
                             value={loginData.phone}
                             onChange={(e) => setLoginData({ phone: e.target.value })}
-                            placeholder="Ingrese su telefono"
+                            placeholder="Ingrese su teléfono"
                             required
                             disabled={loading}
                           />
                           <Form.Text className="text-muted">
-                            Ingrese el telefono con el que se registro
+                            Ingrese el teléfono con el que se registró
                           </Form.Text>
                         </Form.Group>
 
@@ -368,7 +436,7 @@ const TicketPurchase = () => {
                           disabled={loading || !loginData.phone}
                           className="w-100"
                         >
-                          {loading ? 'Verificando...' : 'Iniciar Sesion'}
+                          {loading ? 'Verificando...' : 'Iniciar Sesión'}
                         </Button>
 
                         <div className="text-center mt-3">
@@ -377,7 +445,7 @@ const TicketPurchase = () => {
                             onClick={() => setMode('register')}
                             className="text-decoration-none"
                           >
-                            Primera vez? Registrese aqui
+                            ¿Primera vez? Regístrese aquí
                           </Button>
                         </div>
                       </Form>
@@ -396,12 +464,12 @@ const TicketPurchase = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                          <Form.Label>Telefono *</Form.Label>
+                          <Form.Label>Teléfono *</Form.Label>
                           <Form.Control
                             type="tel"
                             value={registerData.phone}
                             onChange={(e) => setRegisterData({...registerData, phone: e.target.value})}
-                            placeholder="Ingrese su telefono"
+                            placeholder="Ingrese su teléfono"
                             required
                             disabled={loading}
                           />
@@ -424,7 +492,7 @@ const TicketPurchase = () => {
                           disabled={loading || !registerData.name || !registerData.phone}
                           className="w-100"
                         >
-                          {loading ? 'Registrando...' : 'Registrarse e Iniciar Sesion'}
+                          {loading ? 'Registrando...' : 'Registrarse e Iniciar Sesión'}
                         </Button>
 
                         <div className="text-center mt-3">
@@ -433,7 +501,7 @@ const TicketPurchase = () => {
                             onClick={() => setMode('login')}
                             className="text-decoration-none"
                           >
-                            Ya tienes cuenta? Inicia sesion aqui
+                            ¿Ya tienes cuenta? Inicia sesión aquí
                           </Button>
                         </div>
                       </Form>
@@ -455,7 +523,7 @@ const TicketPurchase = () => {
                   onClick={handleLogout}
                 >
                   <i className="fa fa-sign-out me-1"></i>
-                  Cerrar Sesion
+                  Cerrar Sesión
                 </Button>
               </Alert>
 
@@ -463,41 +531,77 @@ const TicketPurchase = () => {
                 <Form.Label>Seleccionar Rifa</Form.Label>
                 <Form.Select
                   value={purchaseData.raffleId}
-                  onChange={(e) => setPurchaseData({...purchaseData, raffleId: e.target.value})}
+                  onChange={(e) => {
+                    setPurchaseData({...purchaseData, raffleId: e.target.value});
+                    setSelectedNumbers([]);
+                  }}
                   disabled={loading}
                 >
                   {raffles.map(raffle => (
                     <option key={raffle.id} value={raffle.id}>
-                      {raffle.title} - ${raffle.ticket_price} c/u ({raffle.tickets_sold}/{raffle.total_tickets})
+                      {raffle.title} - ${raffle.ticket_price} c/u ({raffle.tickets_sold + raffle.tickets_reserved}/{raffle.total_tickets})
                     </option>
                   ))}
                 </Form.Select>
               </Form.Group>
 
-              
-                {selectedRaffle && (
-                  <Card className="mb-3 bg-light">
-                    <Card.Body>
-                      <h5>{selectedRaffle.title}</h5>
-                      <p className="mb-1">{selectedRaffle.description}</p>
-                      <p className="mb-1">
-                       <strong>Premio 1° Lugar:</strong> {selectedRaffle.prize_first}
-                      </p>
-                      <p className="mb-1">
-                      <strong>Premio 2° Lugar:</strong> {selectedRaffle.prize_second}
-                    </p>
-                    <p className="mb-1">
-                        <strong>Premio 3° Lugar:</strong> {selectedRaffle.prize_third}
-                     </p>
-                    <p className="mb-1">
-                        <strong>Boletos disponibles:</strong> {maxQuantity}
-                     </p>
-                     <p className="mb-0">
-                        <strong>Precio por boleto:</strong> ${selectedRaffle.ticket_price}
-                     </p>
-                    </Card.Body>
-                  </Card>
-                )}
+              {selectedRaffle && (
+                <Card className="mb-3 bg-light">
+                  <Card.Body>
+                    <h5>{selectedRaffle.title}</h5>
+                    <p className="mb-1">{selectedRaffle.description}</p>
+                    
+                    <div className="prizes-section mb-3">
+                      <h6>Premios:</h6>
+                      <div className="d-flex flex-wrap gap-2">
+                        <Badge bg="success" className="fs-6 p-2">
+                          1°: {selectedRaffle.prize_first}
+                        </Badge>
+                        <Badge bg="info" className="fs-6 p-2">
+                          2°: {selectedRaffle.prize_second}
+                        </Badge>
+                        <Badge bg="warning" className="fs-6 p-2">
+                          3°: {selectedRaffle.prize_third}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="progress-stats mb-3">
+                      <div className="d-flex justify-content-between mb-1">
+                        <span>Progreso de venta</span>
+                        <span>{selectedRaffle.tickets_sold + selectedRaffle.tickets_reserved}/{selectedRaffle.total_tickets}</span>
+                      </div>
+                      <ProgressBar>
+                        <ProgressBar 
+                          variant="success" 
+                          now={(selectedRaffle.tickets_sold / selectedRaffle.total_tickets) * 100} 
+                          key={1}
+                          label="Pagados"
+                        />
+                        <ProgressBar 
+                          variant="warning" 
+                          now={(selectedRaffle.tickets_reserved / selectedRaffle.total_tickets) * 100} 
+                          key={2}
+                          label="Reservados"
+                        />
+                      </ProgressBar>
+                    </div>
+
+                    <div className="row">
+                      <div className="col-md-6">
+                        <p className="mb-1">
+                          <strong>Boletos disponibles:</strong> {maxQuantity}
+                        </p>
+                      </div>
+                      <div className="col-md-6">
+                        <p className="mb-0">
+                          <strong>Precio por boleto:</strong> ${selectedRaffle.ticket_price}
+                        </p>
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              )}
 
               <Row>
                 <Col lg={6} md={12}>
@@ -527,7 +631,7 @@ const TicketPurchase = () => {
                         max={maxQuantity}
                         disabled={loading || !selectedRaffle || maxQuantity === 0}
                         isInvalid={!!validationErrors.quantity}
-                        placeholder={`Maximo ${maxQuantity}`}
+                        placeholder={`Máximo ${maxQuantity}`}
                       />
                       {purchaseData.quantity && (
                         <Button
@@ -559,15 +663,15 @@ const TicketPurchase = () => {
                     className="w-100 mb-3"
                   >
                     <i className="fa fa-hand-pointer me-2"></i>
-                    {loadingNumbers ? 'Cargando numeros...' : 
+                    {loadingNumbers ? 'Cargando números...' : 
                      purchaseData.quantity ? 
-                       `Seleccionar ${purchaseData.quantity} Numero(s)` : 
+                       `Seleccionar ${purchaseData.quantity} Número(s)` : 
                        'Ingrese cantidad primero'}
                   </Button>
                   
                   {selectedNumbers.length > 0 && (
                     <div className="selected-numbers-container mb-3">
-                      <h6>Numeros seleccionados:</h6>
+                      <h6>Números seleccionados:</h6>
                       <div className="selected-numbers">
                         {selectedNumbers.sort((a, b) => a - b).map(number => (
                           <span key={number} className="selected-number-badge">
@@ -595,7 +699,7 @@ const TicketPurchase = () => {
                           <Alert variant="warning" className="mt-2 py-1">
                             <small>
                               <i className="fa fa-exclamation-triangle me-1"></i>
-                              Debe seleccionar {purchaseData.quantity} numero(s)
+                              Debe seleccionar {purchaseData.quantity} número(s)
                             </small>
                           </Alert>
                         )}
@@ -606,9 +710,9 @@ const TicketPurchase = () => {
               </Row>
 
               <Button
-                variant="success"
-                onClick={handleTicketPurchase}
-                disabled={loading || !isPurchaseReady()}
+                variant="warning"
+                onClick={handleTicketReservation}
+                disabled={loading || !isReservationReady()}
                 className="w-100 mt-3"
                 size="lg"
               >
@@ -619,11 +723,24 @@ const TicketPurchase = () => {
                   </>
                 ) : (
                   <>
-                    <i className="fa fa-shopping-cart me-2"></i>
-                    Comprar Boletos Seleccionados
+                    <i className="fa fa-clock me-2"></i>
+                    Reservar Boletos Seleccionados
                   </>
                 )}
               </Button>
+
+              {reservedUntil && timeLeft && (
+                <Alert variant="warning" className="mt-3">
+                  <i className="fa fa-clock me-2"></i>
+                  <strong>Tienes reservas pendientes de pago.</strong>
+                  <div className="mt-1">
+                    Tiempo restante: <strong>{timeLeft}</strong>
+                    <div className="small text-muted">
+                      Contacta al administrador para completar el pago antes de que expire el tiempo.
+                    </div>
+                  </div>
+                </Alert>
+              )}
             </>
           )}
         </Card.Body>
@@ -634,23 +751,28 @@ const TicketPurchase = () => {
         <Modal.Header closeButton className="bg-primary text-white">
           <Modal.Title>
             <i className="fa fa-th-list me-2"></i>
-            Seleccionar Numeros de Boletos
+            Seleccionar Números de Boletos
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {loadingNumbers ? (
             <div className="text-center py-4">
               <div className="spinner-border text-primary" role="status">
-                <span className="visually-hidden">Cargando numeros disponibles...</span>
+                <span className="visually-hidden">Cargando números disponibles...</span>
               </div>
-              <p className="mt-2">Cargando numeros disponibles...</p>
+              <p className="mt-2">Cargando números disponibles...</p>
             </div>
           ) : (
             <>
               <Alert variant="info">
                 <i className="fa fa-info-circle me-2"></i>
-                Seleccione {purchaseData.quantity || 0} numero(s) de los disponibles. 
-                Haga clic en un numero para seleccionarlo/deseleccionarlo.
+                Seleccione {purchaseData.quantity || 0} número(s) de los disponibles. 
+                Haga clic en un número para seleccionarlo/deseleccionarlo.
+                <div className="mt-1">
+                  <span className="badge bg-success me-2">Disponible</span>
+                  <span className="badge bg-danger me-2">No disponible</span>
+                  <span className="badge bg-primary">Seleccionado</span>
+                </div>
                 {selectedNumbers.length > 0 && (
                   <span className="ms-2">
                     <strong>Seleccionados: {selectedNumbers.sort((a, b) => a - b).join(', ')}</strong>
@@ -661,10 +783,10 @@ const TicketPurchase = () => {
               {renderNumberGrid()}
               
               <div className="mt-4 p-3 bg-light rounded">
-                <h6>Resumen de Seleccion</h6>
+                <h6>Resumen de Selección</h6>
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
-                    <strong>Numeros seleccionados: </strong>
+                    <strong>Números seleccionados: </strong>
                     {selectedNumbers.length > 0 ? selectedNumbers.sort((a, b) => a - b).join(', ') : 'Ninguno'}
                   </div>
                   <div>
@@ -676,7 +798,7 @@ const TicketPurchase = () => {
                 {selectedNumbers.length !== (parseInt(purchaseData.quantity) || 0) && (
                   <Alert variant="warning" className="mt-2 mb-0 py-2">
                     <i className="fa fa-exclamation-triangle me-2"></i>
-                    Debe seleccionar exactamente {purchaseData.quantity} numero(s)
+                    Debe seleccionar exactamente {purchaseData.quantity} número(s)
                   </Alert>
                 )}
               </div>
@@ -692,7 +814,7 @@ const TicketPurchase = () => {
             onClick={() => setShowNumberModal(false)}
             disabled={selectedNumbers.length === 0}
           >
-            Confirmar Seleccion
+            Confirmar Selección
           </Button>
         </Modal.Footer>
       </Modal>
@@ -702,18 +824,30 @@ const TicketPurchase = () => {
         <Modal.Header closeButton className="bg-success text-white">
           <Modal.Title>
             <i className="fa fa-whatsapp me-2"></i>
-            Notificar a Administradores
+            Contactar Administradores para Pago
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Alert variant="info">
             <i className="fa fa-info-circle me-2"></i>
-            Por favor, envie un mensaje por WhatsApp a los administradores para notificar la compra.
-            Haga clic en cada enlace para abrir WhatsApp y enviar el mensaje automaticamente.
+            <strong>¡Importante!</strong> Tus boletos están <strong>RESERVADOS</strong> pero no pagados.
+            Debes contactar a un administrador por WhatsApp para completar el pago.
+            Tienes 24 horas para pagar, de lo contrario la reserva se cancelará.
+          </Alert>
+          
+          <Alert variant="warning">
+            <i className="fa fa-exclamation-triangle me-2"></i>
+            <strong>Instrucciones de pago:</strong>
+            <ol className="mb-0 mt-2">
+              <li>Haz clic en "Contactar" para abrir WhatsApp</li>
+              <li>Envía el mensaje predefinido al administrador</li>
+              <li>Coordina el método de pago con el administrador</li>
+              <li>El administrador confirmará el pago en el sistema</li>
+            </ol>
           </Alert>
           
           {whatsappLinks.map((link, index) => (
-            <Card key={index} className="mb-2">
+            <Card key={index} className="mb-2 border-success">
               <Card.Body className="py-2">
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
@@ -726,7 +860,7 @@ const TicketPurchase = () => {
                     onClick={() => openWhatsAppLink(link.link)}
                   >
                     <i className="fa fa-whatsapp me-1"></i>
-                    Enviar
+                    Contactar
                   </Button>
                 </div>
               </Card.Body>
@@ -735,32 +869,96 @@ const TicketPurchase = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowWhatsAppModal(false)}>
-            Cerrar
+            Entendido
           </Button>
         </Modal.Footer>
       </Modal>
 
+      {/* Sección de boletos reservados */}
+      {reservedTickets.length > 0 && (
+        <Card className="mt-4 shadow-sm border-warning">
+          <Card.Header className="bg-warning text-white">
+            <h5 className="mb-0">
+              <i className="fa fa-clock me-2"></i>
+              Tus Boletos Reservados (Pendientes de Pago)
+            </h5>
+          </Card.Header>
+          <Card.Body>
+            <Alert variant="warning">
+              <i className="fa fa-exclamation-triangle me-2"></i>
+              Estos boletos están reservados pero no pagados. Contacta a un administrador para completar el pago.
+              {timeLeft && (
+                <div className="mt-1">
+                  <strong>Tiempo restante:</strong> {timeLeft}
+                </div>
+              )}
+            </Alert>
+            
+            <Row>
+              {reservedTickets.map(ticket => {
+                const raffle = raffles.find(r => r.id === ticket.raffle_id);
+                return (
+                  <Col lg={3} md={4} sm={6} xs={6} key={ticket.id} className="mb-3">
+                    <Card className="text-center border-warning h-100">
+                      <Card.Body>
+                        <div className="ticket-number-display reserved">
+                          <h2 className="text-white">{ticket.ticket_number}</h2>
+                        </div>
+                        <Badge bg="warning" className="mt-2">Reservado</Badge>
+                        <div className="mt-2">
+                          <small className="text-muted">
+                            {raffle?.title || 'Rifa'}
+                          </small>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                );
+              })}
+            </Row>
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* Sección de boletos pagados */}
       {tickets.length > 0 && (
         <Card className="mt-4 shadow-sm border-success">
           <Card.Header className="bg-success text-white">
-            <h5 className="mb-0">Tus Boletos Comprados</h5>
+            <h5 className="mb-0">
+              <i className="fa fa-check-circle me-2"></i>
+              Tus Boletos Pagados
+            </h5>
           </Card.Header>
           <Card.Body>
+            <Alert variant="success">
+              <i className="fa fa-check-circle me-2"></i>
+              Estos boletos están completamente pagados y puedes participar en el sorteo.
+            </Alert>
+            
             <Row>
-              {tickets.map(ticket => (
-                <Col lg={3} md={4} sm={6} xs={6} key={ticket.id} className="mb-3">
-                  <Card className="text-center border-primary h-100">
-                    <Card.Body>
-                      <div className="ticket-number-display">
-                        <h2 className="text-white">{ticket.ticket_number}</h2>
-                      </div>
-                      <small className="text-muted">
-                        {selectedRaffle?.title}
-                      </small>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))}
+              {tickets.map(ticket => {
+                const raffle = raffles.find(r => r.id === ticket.raffle_id);
+                return (
+                  <Col lg={3} md={4} sm={6} xs={6} key={ticket.id} className="mb-3">
+                    <Card className="text-center border-success h-100">
+                      <Card.Body>
+                        <div className="ticket-number-display paid">
+                          <h2 className="text-white">{ticket.ticket_number}</h2>
+                        </div>
+                        <Badge bg="success" className="mt-2">Pagado</Badge>
+                        {ticket.is_winner && (
+                          <Badge bg="danger" className="mt-2 ms-1">¡Ganador!</Badge>
+                        )}
+                        <div className="mt-2">
+                          <small className="text-muted">
+                            {raffle?.title || 'Rifa'}
+                          </small>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                );
+              })}
             </Row>
           </Card.Body>
         </Card>

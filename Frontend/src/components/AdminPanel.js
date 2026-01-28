@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, Alert, Table, Modal, Badge } from 'react-bootstrap';
 import { getRaffles, createRaffle, completeRaffle, deleteRaffle, getAdmins, createAdmin, updateAdmin, deleteAdmin, getStatsOverview } from '../api';
 import 'font-awesome/css/font-awesome.min.css';
+import PaymentConfirmation from './PaymentConfirmation'; // Importar el componente
 
 const AdminPanel = ({ admin }) => {
   const [raffles, setRaffles] = useState([]);
@@ -516,7 +517,7 @@ const AdminPanel = ({ admin }) => {
         </Col>
       </Row>
 
-      <Row>
+      <Row className="mb-4">
         <Col md={12}>
           <Card className="shadow">
             <Card.Header className="bg-info text-white">
@@ -614,6 +615,23 @@ const AdminPanel = ({ admin }) => {
         </Col>
       </Row>
 
+      {/* NUEVA SECCIÓN AGREGADA: Confirmación de Pagos */}
+      <Row className="mb-4">
+        <Col md={12}>
+          <Card className="shadow">
+            <Card.Header className="bg-warning text-white">
+              <h5 className="mb-0">
+                <i className="fa fa-money me-2"></i>
+                Confirmación de Pagos
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              <PaymentConfirmation />
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
       {/* Modal para crear nuevo admin */}
       <Modal show={showAdminModal} onHide={() => setShowAdminModal(false)}>
         <Modal.Header closeButton className="bg-warning text-white">
@@ -652,7 +670,7 @@ const AdminPanel = ({ admin }) => {
                 type="tel"
                 value={newAdmin.phone}
                 onChange={(e) => setNewAdmin({...newAdmin, phone: e.target.value})}
-                placeholder="Ej: +1234567890"
+                placeholder="Ej: +53 53467890"
               />
               <Form.Text className="text-muted">
                 Se usará para notificaciones por WhatsApp

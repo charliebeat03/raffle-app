@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button, Card, Alert, Row, Col, Modal, Form, Table, Badge } from 'react-bootstrap';
 import Confetti from 'react-confetti';
 import { performDraw, getRaffles, getRaffleWinners, getRaffleTickets } from '../api';
+import io from 'socket.io-client';
 import 'font-awesome/css/font-awesome.min.css';
 import './Wheel.css';
 
@@ -17,15 +18,39 @@ const Wheel = ({ isAdmin }) => {
   const [availableTickets, setAvailableTickets] = useState([]);
   const [drawnNumbers, setDrawnNumbers] = useState([]);
   const [currentWinnerIndex, setCurrentWinnerIndex] = useState(0);
-  const [purchaseReport, setPurchaseReport] = useState(null);
-  const [showPurchaseReport, setShowPurchaseReport] = useState(false);
   const wheelRef = useRef(null);
   const svgRef = useRef(null);
   const [currentAngle, setCurrentAngle] = useState(0);
+  const [socket, setSocket] = useState(null);
 
   useEffect(() => {
     fetchRaffles();
+    
+    // Conectar WebSocket
+    const newSocket = io(process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:8000');
+    setSocket(newSocket);
+
+    return () => newSocket.close();
   }, []);
+
+  useEffect(() => {
+    if (socket) {
+      socket.on('wheel_spin', (data) => {
+        // Actualizar animación de ruleta para todos los usuarios
+        if (data.raffleId === selectedRaffle?.id) {
+          animateWheelForViewers(data.angle, data.winningNumber);
+        }
+      });
+
+      socket.on('winner_selected', (data) => {
+        // Actualizar lista de ganadores en tiempo real
+        if (data.raffleId === selectedRaffle?.id) {
+          setWinners(prev => [...prev, data.winner]);
+          setCurrentWinnerIndex(prev => prev + 1);
+        }
+      });
+    }
+  }, [socket, selectedRaffle]);
 
   useEffect(() => {
     if (selectedRaffle) {
@@ -117,24 +142,10 @@ const Wheel = ({ isAdmin }) => {
       const winningTicket = availableForDraw[randomIndex];
       const winningNumber = winningTicket.ticket_number;
 
-      // CORRECCIÓN: Calcular ángulo considerando que 0° está arriba
-      // Cada número ocupa 3.6 grados (360/100)
-      // El número 1 debe estar en la posición 0° (arriba)
-      // El indicador (triángulo) está en 0° (arriba)
       const anglePerNumber = 3.6;
-      
-      // Ángulo donde se encuentra el número ganador (0° es arriba)
-      // Número 1 = 0°, Número 2 = 3.6°, etc.
       const winningAngle = (winningNumber - 1) * anglePerNumber;
-      
-      // Queremos que el número ganador termine en el indicador (0°)
-      // Para eso necesitamos girar: (360 - winningAngle) grados desde su posición actual
-      // Además giramos varias vueltas completas para efecto
-      const fullRotations = 5; // 5 vueltas completas
+      const fullRotations = 5;
       const baseRotation = fullRotations * 360;
-      
-      // Calcular rotación total para que termine en 0°
-      // Esto es: baseRotation + (360 - winningAngle)
       const targetRotation = baseRotation + (360 - winningAngle);
       
       console.log(`Número: ${winningNumber}, Ángulo: ${winningAngle}°, Rotación objetivo: ${targetRotation}°`);
@@ -143,6 +154,15 @@ const Wheel = ({ isAdmin }) => {
       if (svgRef.current) {
         svgRef.current.style.transition = 'transform 5s cubic-bezier(0.17, 0.67, 0.3, 0.99)';
         svgRef.current.style.transform = `rotate(${targetRotation}deg)`;
+      }
+
+      // Enviar evento WebSocket
+      if (socket) {
+        socket.emit('wheel_spin', {
+          raffleId: selectedRaffle.id,
+          angle: targetRotation,
+          winningNumber: winningNumber
+        });
       }
 
       // Esperar a que termine la animación para registrar el ganador
@@ -167,6 +187,13 @@ const Wheel = ({ isAdmin }) => {
               position: newWinner.prize_position,
               ticket: newWinner.ticket_number
             }]);
+          }
+
+          if (socket) {
+            socket.emit('winner_selected', {
+              raffleId: selectedRaffle.id,
+              winner: newWinner
+            });
           }
 
           if (currentWinnerIndex + 1 === 3) {
@@ -200,6 +227,21 @@ const Wheel = ({ isAdmin }) => {
     }
   };
 
+  const animateWheelForViewers = (angle, winningNumber) => {
+    // Animación para usuarios que solo ven
+    if (svgRef.current) {
+      svgRef.current.style.transition = 'transform 5s cubic-bezier(0.17, 0.67, 0.3, 0.99)';
+      svgRef.current.style.transform = `rotate(${angle}deg)`;
+      
+      setTimeout(() => {
+        setMessage({
+          type: 'info',
+          text: `¡Número ganador: ${winningNumber}!`
+        });
+      }, 5000);
+    }
+  };
+
   const openAllWhatsAppLinks = () => {
     if (whatsappLinks.length === 0) {
       setMessage({ type: 'warning', text: 'No hay enlaces de WhatsApp disponibles' });
@@ -220,7 +262,6 @@ const Wheel = ({ isAdmin }) => {
     const centerY = 200;
     const angleStep = (2 * Math.PI) / 100;
     
-    // Ajustar para que 0° esté arriba (restamos 90°)
     const offsetAngle = -Math.PI / 2;
 
     for (let i = 0; i < 100; i++) {
@@ -239,7 +280,6 @@ const Wheel = ({ isAdmin }) => {
       const textX = centerX + textRadius * Math.cos(angle + angleStep / 2);
       const textY = centerY + textRadius * Math.sin(angle + angleStep / 2);
       
-      // Calcular ángulo del texto
       const textAngle = (angle + angleStep / 2) * (180 / Math.PI);
 
       segments.push(
@@ -408,7 +448,6 @@ const Wheel = ({ isAdmin }) => {
                   
                   <circle cx="200" cy="200" r="30" className="wheel-center" />
                   
-                  {/* Líneas radiales para mejor visualización */}
                   {Array.from({ length: 20 }).map((_, i) => (
                     <line
                       key={`pointer-${i}`}
