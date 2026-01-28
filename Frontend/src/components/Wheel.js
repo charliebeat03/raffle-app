@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button, Card, Alert, Row, Col, Modal, Form, Table, Badge } from 'react-bootstrap';
 import Confetti from 'react-confetti';
 import { performDraw, getRaffles, getRaffleWinners, getRaffleTickets } from '../api';
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 import 'font-awesome/css/font-awesome.min.css';
 import './Wheel.css';
 
@@ -26,15 +26,32 @@ const Wheel = ({ isAdmin }) => {
   useEffect(() => {
     fetchRaffles();
     
-    // Conectar WebSocket
-    const newSocket = io(process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:8000');
+    // Conectar Socket.IO
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    const baseUrl = apiUrl.replace('/api', '');
+    
+    const newSocket = io(baseUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
     setSocket(newSocket);
 
-    return () => newSocket.close();
+    return () => {
+      if (newSocket) {
+        newSocket.disconnect();
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (socket) {
+      socket.on('connect', () => {
+        console.log('Conectado al servidor Socket.IO');
+      });
+
       socket.on('wheel_spin', (data) => {
         // Actualizar animación de ruleta para todos los usuarios
         if (data.raffleId === selectedRaffle?.id) {
@@ -48,6 +65,10 @@ const Wheel = ({ isAdmin }) => {
           setWinners(prev => [...prev, data.winner]);
           setCurrentWinnerIndex(prev => prev + 1);
         }
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Desconectado del servidor Socket.IO');
       });
     }
   }, [socket, selectedRaffle]);
@@ -156,7 +177,7 @@ const Wheel = ({ isAdmin }) => {
         svgRef.current.style.transform = `rotate(${targetRotation}deg)`;
       }
 
-      // Enviar evento WebSocket
+      // Enviar evento Socket.IO
       if (socket) {
         socket.emit('wheel_spin', {
           raffleId: selectedRaffle.id,
@@ -375,7 +396,15 @@ const Wheel = ({ isAdmin }) => {
                   {selectedRaffle && (
                     <Card className="bg-light">
                       <Card.Body>
-                        <p><strong>Premio:</strong> {selectedRaffle.prize}</p>
+                        <div className="mb-2">
+                          <strong>1° Premio:</strong> {selectedRaffle.prize_first}
+                        </div>
+                        <div className="mb-2">
+                          <strong>2° Premio:</strong> {selectedRaffle.prize_second}
+                        </div>
+                        <div className="mb-2">
+                          <strong>3° Premio:</strong> {selectedRaffle.prize_third}
+                        </div>
                         <p><strong>Boletos vendidos:</strong> {selectedRaffle.tickets_sold}</p>
                         <p><strong>Estado:</strong> 
                           <span className={`badge ${selectedRaffle.is_completed ? 'bg-danger' : 'bg-success'} ms-2`}>
