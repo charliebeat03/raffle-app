@@ -16,28 +16,6 @@ import asyncio
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# WebSocket para ruleta en tiempo real
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except:
-                self.disconnect(connection)
-
-manager = ConnectionManager()
-
 # Pydantic Models
 class AdminLogin(BaseModel):
     username: str
@@ -231,18 +209,6 @@ class WhatsAppLinksResponse(BaseModel):
     raffle_id: int
     raffle_title: str
     winners: List[Dict[str, Any]]
-
-# WebSocket para ruleta
-@router.websocket("/ws/wheel/{raffle_id}")
-async def websocket_wheel(websocket: WebSocket, raffle_id: int):
-    await manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            # Retransmitir a todos los clientes
-            await manager.broadcast(data)
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
 
 # ========== RUTAS DE AUTENTICACIÓN ==========
 @router.post("/auth/login", response_model=Token)
@@ -904,4 +870,5 @@ def get_overview_stats(
         "total_revenue": round(total_revenue, 2),
         "potential_revenue": round((total_tickets_reserved * 10), 2),
         "last_updated": datetime.utcnow().isoformat()
+
     }
