@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button, Card, Alert, Row, Col, Modal, Form, Table, Badge } from 'react-bootstrap';
 import Confetti from 'react-confetti';
 import { performDraw, getRaffles, getRaffleWinners, getRaffleTickets } from '../api';
-import { io } from 'socket.io-client';
+import io from 'socket.io-client';
 import 'font-awesome/css/font-awesome.min.css';
 import './Wheel.css';
 
@@ -26,11 +26,10 @@ const Wheel = ({ isAdmin }) => {
   useEffect(() => {
     fetchRaffles();
     
-    // Conectar Socket.IO
+    // Conectar Socket.IO - usar la URL base sin /api
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-    const baseUrl = apiUrl.replace('/api', '');
     
-    const newSocket = io(baseUrl, {
+    const newSocket = io(apiUrl, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
