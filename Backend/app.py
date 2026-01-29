@@ -5,6 +5,8 @@ import uvicorn
 import time
 import logging
 import socketio
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
 
 from database import engine, Base, create_default_admin, init_db
 from routes import router
@@ -36,6 +38,7 @@ async def lifespan(app: FastAPI):
     
     logger.info("Apagando aplicación...")
 
+# Crear aplicación FastAPI
 app = FastAPI(
     title="Raffle Management API",
     description="API para gestión de rifas",
@@ -56,6 +59,9 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
+# Incluir rutas API
+app.include_router(router, prefix="/api")
+
 # Eventos de Socket.IO
 @sio.event
 async def connect(sid, environ):
@@ -75,12 +81,6 @@ async def winner_selected(sid, data):
     logger.info(f"Evento winner_selected recibido de {sid}: {data}")
     await sio.emit('winner_selected', data, skip_sid=sid)
 
-# Crear aplicación ASGI para Socket.IO
-socketio_app = socketio.ASGIApp(sio, app)
-
-# Incluir rutas API
-socketio_app.mount("/api", router)
-
 # Ruta raíz
 @app.get("/")
 def read_root():
@@ -89,7 +89,8 @@ def read_root():
         "docs": "/docs",
         "redoc": "/redoc",
         "version": "2.0.0",
-        "database": "PostgreSQL"
+        "database": "PostgreSQL",
+        "socketio": "enabled"
     }
 
 @app.get("/health")
@@ -100,9 +101,21 @@ def health_check():
         "database": "connected" if engine else "disconnected"
     }
 
+# Crear aplicación ASGI combinada
+app.mount("/socket.io/", socketio.ASGIApp(sio))
+
+# Handler para rutas no encontradas
+@app.exception_handler(404)
+async def not_found_exception_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={"message": f"Ruta no encontrada: {request.url.path}"}
+    )
+
+# Si se ejecuta directamente
 if __name__ == "__main__":
     uvicorn.run(
-        "app:socketio_app",
+        "app:app",  # Ahora ejecutamos la app FastAPI normal
         host="0.0.0.0",
         port=8000,
         reload=True,
