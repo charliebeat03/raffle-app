@@ -242,38 +242,7 @@ def login_admin(login_data: AdminLogin, db: Session = Depends(get_db)):
         "email": admin.email
     }
 
-@router.get("/auth/me", response_model=AdminResponse)
-def get_current_admin_info(current_admin: Admin = Depends(get_current_admin)):
-    return current_admin
-    @router.get("/debug/admin-check")
-def debug_admin_check(db: Session = Depends(get_db)):
-    """Ruta de depuración para verificar el admin"""
-    from auth import authenticate_admin
-    from models import Admin
-    
-    # Verificar si existe
-    admin = db.query(Admin).filter(Admin.username == "admin").first()
-    
-    if not admin:
-        return {"error": "Admin no encontrado en DB"}
-    
-    # Probar autenticación
-    test_result = authenticate_admin(db, "admin", "Admin123!")
-    
-    return {
-        "admin_exists": True,
-        "username": admin.username,
-        "email": admin.email,
-        "is_active": admin.is_active,
-        "is_main_admin": admin.is_main_admin,
-        "password_hash_length": len(admin.password_hash) if admin.password_hash else 0,
-        "password_hash_prefix": admin.password_hash[:30] + "..." if admin.password_hash else None,
-        "authentication_test": "SUCCESS" if test_result else "FAILED",
-        "suggested_login": {
-            "username": "admin",
-            "password": "Admin123!"
-        }
-    }
+
 
 # ========== RUTAS PÚBLICAS ==========
 @router.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
