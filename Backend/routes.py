@@ -228,8 +228,8 @@ def login_admin(login_data: AdminLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # ¡ESTA LÍNEA ESTABA CAUSANDO EL ERROR!
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+   
+   
     
     access_token = create_access_token(
         data={"sub": admin.username, "admin_id": admin.id},
@@ -870,6 +870,7 @@ def get_overview_stats(
         "last_updated": datetime.utcnow().isoformat()
 
     }
+
 
 
 
