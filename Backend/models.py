@@ -4,8 +4,10 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import bcrypt
 import enum
+import logging
 
 Base = declarative_base()
+logger = logging.getLogger(__name__)
 
 class TicketStatus(enum.Enum):
     PENDING = "pending"
@@ -93,35 +95,17 @@ class Admin(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def set_password(self, password: str):
-        """Establece la contraseña hasheada usando bcrypt"""
-        if not password:
-            raise ValueError("La contraseña no puede estar vacía")
-        
-        try:
-            password_bytes = password.encode('utf-8')
-            salt = bcrypt.gensalt(rounds=12)  # Usar 12 rondas (seguridad buena)
-            hash_bytes = bcrypt.hashpw(password_bytes, salt)
-            self.password_hash = hash_bytes.decode('utf-8')
-        except Exception as e:
-            raise ValueError(f"Error al hash la contraseña: {e}")
+        password_bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        self.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
     
     def verify_password(self, password: str) -> bool:
-        """Verifica si la contraseña proporcionada coincide con el hash almacenado"""
-        if not password or not self.password_hash:
-            return False
-        
+        password_bytes = password.encode('utf-8')
         try:
-            password_bytes = password.encode('utf-8')
-            
-            # Asegurarse de que el hash almacenado esté en bytes
-            if isinstance(self.password_hash, str):
-                stored_hash = self.password_hash.encode('utf-8')
-            else:
-                stored_hash = self.password_hash
-            
-            # Verificar la contraseña
-            return bcrypt.checkpw(password_bytes, stored_hash)
+            hash_bytes = self.password_hash.encode('utf-8')
+            result = bcrypt.checkpw(password_bytes, hash_bytes)
+            logger.debug(f"Verificación de contraseña para {self.username}: {result}")
+            return result
         except Exception as e:
-            # Log del error (en producción usarías logging)
-            print(f"Error en verify_password: {e}")
+            logger.error(f"Error en verify_password para {self.username}: {e}")
             return False
