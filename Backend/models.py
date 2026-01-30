@@ -61,11 +61,6 @@ class Ticket(Base):
     
     user = relationship("User", back_populates="tickets")
     raffle = relationship("Raffle", back_populates="tickets")
-    
-    # Índice compuesto para mejorar consultas
-    __table_args__ = (
-        {'sqlite_autoincrement': True} if 'sqlite' in __tablename__ else {}
-    )
 
 class Winner(Base):
     __tablename__ = "winners"
@@ -98,13 +93,35 @@ class Admin(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def set_password(self, password: str):
-        password_bytes = password.encode('utf-8')
-        salt = bcrypt.gensalt()
-        self.password_hash = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+        """Establece la contraseña hasheada usando bcrypt"""
+        if not password:
+            raise ValueError("La contraseña no puede estar vacía")
+        
+        try:
+            password_bytes = password.encode('utf-8')
+            salt = bcrypt.gensalt(rounds=12)  # Usar 12 rondas (seguridad buena)
+            hash_bytes = bcrypt.hashpw(password_bytes, salt)
+            self.password_hash = hash_bytes.decode('utf-8')
+        except Exception as e:
+            raise ValueError(f"Error al hash la contraseña: {e}")
     
     def verify_password(self, password: str) -> bool:
-        password_bytes = password.encode('utf-8')
+        """Verifica si la contraseña proporcionada coincide con el hash almacenado"""
+        if not password or not self.password_hash:
+            return False
+        
         try:
-            return bcrypt.checkpw(password_bytes, self.password_hash.encode('utf-8'))
-        except:
+            password_bytes = password.encode('utf-8')
+            
+            # Asegurarse de que el hash almacenado esté en bytes
+            if isinstance(self.password_hash, str):
+                stored_hash = self.password_hash.encode('utf-8')
+            else:
+                stored_hash = self.password_hash
+            
+            # Verificar la contraseña
+            return bcrypt.checkpw(password_bytes, stored_hash)
+        except Exception as e:
+            # Log del error (en producción usarías logging)
+            print(f"Error en verify_password: {e}")
             return False
