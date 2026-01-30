@@ -211,6 +211,59 @@ class WhatsAppLinksResponse(BaseModel):
     winners: List[Dict[str, Any]]
 
 # ========== RUTAS DE AUTENTICACIÓN ==========
+# Agrega esto ANTES del @router.post("/auth/login")
+@router.post("/reset-admin")
+def reset_default_admin(db: Session = Depends(get_db)):
+    """Ruta temporal para resetear el admin por defecto"""
+    from models import Admin
+    from config import settings
+    
+    try:
+        # Verificar si el admin ya existe
+        existing_admin = db.query(Admin).filter(
+            Admin.username == settings.ADMIN_USERNAME
+        ).first()
+        
+        if existing_admin:
+            # Actualizar contraseña
+            existing_admin.set_password(settings.ADMIN_PASSWORD)
+            existing_admin.email = settings.ADMIN_EMAIL
+            existing_admin.is_active = True
+            existing_admin.is_main_admin = True
+            db.commit()
+            
+            return {
+                "message": "Admin existente actualizado",
+                "username": settings.ADMIN_USERNAME,
+                "password": settings.ADMIN_PASSWORD
+            }
+        else:
+            # Crear nuevo admin
+            new_admin = Admin(
+                username=settings.ADMIN_USERNAME,
+                email=settings.ADMIN_EMAIL,
+                phone=None,
+                is_active=True,
+                is_main_admin=True
+            )
+            new_admin.set_password(settings.ADMIN_PASSWORD)
+            
+            db.add(new_admin)
+            db.commit()
+            db.refresh(new_admin)
+            
+            return {
+                "message": "Admin creado exitosamente",
+                "username": settings.ADMIN_USERNAME,
+                "password": settings.ADMIN_PASSWORD
+            }
+            
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear/resetear admin: {str(e)}"
+            )
 @router.post("/auth/login", response_model=Token)
 def login_admin(login_data: AdminLogin, db: Session = Depends(get_db)):
     admin = authenticate_admin(db, login_data.username, login_data.password)
@@ -872,3 +925,4 @@ def get_overview_stats(
         "last_updated": datetime.utcnow().isoformat()
 
     }
+
