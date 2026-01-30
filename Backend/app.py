@@ -10,7 +10,7 @@ from fastapi.requests import Request
 
 from database import engine, Base, create_default_admin, init_db
 from routes import router
-from config import settings
+from config import settings  # IMPORTACIÓN AÑADIDA
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
