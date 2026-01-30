@@ -11,6 +11,7 @@ from models import User, Raffle, Ticket, Winner, Admin, TicketStatus
 from database import get_db
 from auth import create_access_token, get_current_admin, authenticate_admin
 from pydantic import BaseModel, validator
+from config import settings  # IMPORTACIÓN AÑADIDA
 import asyncio
 
 router = APIRouter()
@@ -228,8 +229,7 @@ def login_admin(login_data: AdminLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-   
-   
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)  # LINEA CORREGIDA
     
     access_token = create_access_token(
         data={"sub": admin.username, "admin_id": admin.id},
@@ -868,9 +868,4 @@ def get_overview_stats(
         "total_revenue": round(total_revenue, 2),
         "potential_revenue": round((total_tickets_reserved * 10), 2),
         "last_updated": datetime.utcnow().isoformat()
-
     }
-
-
-
-
